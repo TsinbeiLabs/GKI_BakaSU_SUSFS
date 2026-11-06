@@ -636,6 +636,14 @@ jobs:
           cp $SUSFS4KSU/kernel_patches/fs/* ./common/fs/
           cp $SUSFS4KSU/kernel_patches/include/linux/* ./common/include/linux/
 
+          # These helpers are called only by the priority UID filter. The
+          # upstream SUSFS definitions are unconditional and fail with -Werror
+          # when that optional Kconfig choice is disabled.
+          if [[ "${{ inputs.android_version }}-${{ inputs.kernel_version }}" == "android14-6.1" ]] \
+            && grep -q 'static struct cred \*susfs_switch_to_ksu_domain' ./common/fs/susfs.c; then
+            patch -d ./common -p1 < "$ZZH_PATCHES/security_patch/susfs-priority-uid-filter-helpers.patch"
+          fi
+
           case "${{ inputs.ksu_variant }}" in
             "Official")
               cd ./KernelSU
@@ -707,10 +715,6 @@ jobs:
               echo "临时调整 Android 14 6.1 dma-buf.h 上下文"
               sed -i '/^#include <linux\/cpufreq_times.h>$/a #include <linux/dma-buf.h>' fs/proc/base.c
             fi
-            if [[ "$CURRENT_SUB" -ge 157 ]]; then
-              echo "临时调整 Android 14 6.1 namespace.c 上下文"
-              sed -i '/^#include <trace\/hooks\/blk.h>$/d' fs/namespace.c
-            fi
           fi
 
           if [[ "${{ inputs.android_version }}" == "android15" && "${{ inputs.kernel_version }}" == "6.6" ]]; then
@@ -780,10 +784,6 @@ jobs:
             if [[ "$CURRENT_SUB" -le 141 ]]; then
               echo "还原 Android 14 6.1 base.c 临时调整"
               sed -i '/^#include <linux\/dma-buf.h>$/d' fs/proc/base.c
-            fi
-            if [[ "$CURRENT_SUB" -ge 157 ]] && ! grep -qF '#include <trace/hooks/blk.h>' fs/namespace.c; then
-              echo "还原 Android 14 6.1 namespace.c 临时调整"
-              sed -i '/^#include "internal.h"$/a #include <trace/hooks/blk.h>' fs/namespace.c
             fi
           fi
 
